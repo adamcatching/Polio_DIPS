@@ -178,7 +178,11 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
     return all_cells
 
 
-def cell_bright_gfp_thresh(droplet_label, droplet_props, bright_file, gfp_file):
+def cell_bright_gfp_thresh(droplet_label,
+                           droplet_props,
+                           bright_file,
+                           gfp_file,
+                           gfp_thresh=50):
     """
     Use the threshold droplet labels and properties in combination with
     the brightfield and GFP image to return output of segmented cell and
@@ -196,24 +200,74 @@ def cell_bright_gfp_thresh(droplet_label, droplet_props, bright_file, gfp_file):
     gfp_file:
         filename of the gfp microscopy image
         (same dimensions of droplet_label and bright_file)
+    gfp_thresh:
+        the threshold of the gfp
+
+    Returns
+    -------
+    droplet_cells_list:
+        list of black-white images of segmented cells
+    droplet_gfp:
+        list of black-white numpy images for gf
     """
 
     # Test images (brightfield and GFP)
     test_raw_image = skimage.io.imread(bright_file)[:, :, 0]
     test_gfp_image = skimage.io.imread(gfp_file)[:, :, 1]
+
     # Actual droplet segmented GFP image properties
     gfp_droplet_props = skimage.measure.regionprops(droplet_label,
                                                     test_gfp_image)
 
     # Create list of Segmented GFP droplet images
-    gfp_droplets = []
+    droplet_gfp = []
     for index, prop in enumerate(gfp_droplet_props):
-        gfp_droplets.append(prop.intensity_image)
+        droplet_gfp.append(prop.intensity_image > gfp_thresh)
 
     # Create list of brightfield cells
     droplet_cells_list = []
     for i in range(len(droplet_props)):
-        droplet_cells_list.append(micro.cells_from_droplet(droplet_label,
-                                                           test_raw_image, i))
+        droplet_cells_list.append(cells_from_droplet(droplet_label,
+                                                           test_raw_image,
+                                                           i))
 
-    return droplet_cells_list, gfp_droplets
+    return droplet_cells_list, droplet_gfp
+
+
+def diff_cells(bw_cells):
+    """
+    Some cells may be connected and treated as a single cell, use the watershed
+    algorithm and the watershed algorithm to return labeled cells with their
+    properties.
+
+    Reference:
+    scipy-lectures.org/packages/scikit-image/auto_examples/plot_segmentations
+
+    Parameters
+    ----------
+    bw_cells:
+        binary numpy image that contains cells
+
+    Return
+    ------
+    cell_labels:
+        numpy array image where each cell region is assigned a different number
+    cell_props:
+        list of properties of the cell areas
+    """
+
+    # Generate the markers as local maximum of the distance to the background
+    distance = scipy.ndimage.distance_transform_edt(bw_cells)
+    local_maxi = skimage.feature.peak_local_max(distance,
+                                                indices=False,
+                                                footprint=np.ones((50, 50)),
+                                                labels=bw_cells)
+    markers = skimage.measure.label(local_maxi)
+
+    # Label the cells from the centers of the local max
+    cell_labels = skimage.segmentation.watershed(-bw_cells, markers, mask=bw_cells)
+
+    # Return the properties of these cells
+    cell_props = skimage.measure.regionprops(cell_labels)
+
+    return cell_labels, cell_props
