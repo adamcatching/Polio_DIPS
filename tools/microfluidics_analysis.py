@@ -41,12 +41,11 @@ class BulkDroplet:
         self.shape = self.image.shape
         self.multi_channel = multi_channel
 
-    def droplet_segment(self, testing=False):
+    def droplet_segment(self, testing=False, bright_channel=0):
         """Return droplets and their properties"""
 
         # If the image has multiple channels, choose the channel to determine droplets from
         if self.multi_channel:
-            bright_channel = int(input('Input brightfield channel: '))
             image_bright = (self.image)[:, :, bright_channel]
         else:
             image_bright = self.image
