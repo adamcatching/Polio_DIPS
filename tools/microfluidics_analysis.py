@@ -45,6 +45,7 @@ class BulkDroplet:
     def droplet_segment(self, testing=False, bright_channel=0):
         """Return droplets and their properties"""
 
+        print('The file is updated')
         # If the image has multiple channels, choose the channel to determine droplets from
         if self.multi_channel:
             image_bright = self.image[:, :, bright_channel]
@@ -175,3 +176,44 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
                 all_cells = all_cells + filled_seg
 
     return all_cells
+
+
+def cell_bright_gfp_thresh(droplet_label, droplet_props, bright_file, gfp_file):
+    """
+    Use the threshold droplet labels and properties in combination with
+    the brightfield and GFP image to return output of segmented cell and
+    segmented dead cells.
+
+    Parameters
+    ----------
+    droplet_label:
+        numpy array where each droplet's region is a number (i.g. 1, 2, 3...)
+    droplet_props:
+        list of skimage.measure.properties values about droplets
+    bright_file:
+        filename of the brightfield microscopy image
+        (same dimensions of droplet_label and gfp_file)
+    gfp_file:
+        filename of the gfp microscopy image
+        (same dimensions of droplet_label and bright_file)
+    """
+
+    # Test images (brightfield and GFP)
+    test_raw_image = skimage.io.imread(bright_file)[:, :, 0]
+    test_gfp_image = skimage.io.imread(gfp_file)[:, :, 1]
+    # Actual droplet segmented GFP image properties
+    gfp_droplet_props = skimage.measure.regionprops(droplet_label,
+                                                    test_gfp_image)
+
+    # Create list of Segmented GFP droplet images
+    gfp_droplets = []
+    for index, prop in enumerate(gfp_droplet_props):
+        gfp_droplets.append(prop.intensity_image)
+
+    # Create list of brightfield cells
+    droplet_cells_list = []
+    for i in range(len(droplet_props)):
+        droplet_cells_list.append(micro.cells_from_droplet(droplet_label,
+                                                           test_raw_image, i))
+
+    return droplet_cells_list, gfp_droplets
