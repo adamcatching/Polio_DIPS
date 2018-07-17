@@ -17,6 +17,7 @@ import seaborn as sns
 
 # Necessary for analysis
 import numpy as np
+import skimage.measure
 import skimage.filters
 import skimage.morphology
 import skimage.io
@@ -46,7 +47,7 @@ class BulkDroplet:
 
         # If the image has multiple channels, choose the channel to determine droplets from
         if self.multi_channel:
-            image_bright = (self.image)[:, :, bright_channel]
+            image_bright = self.image[:, :, bright_channel]
         else:
             image_bright = self.image
 
@@ -95,11 +96,11 @@ class BulkDroplet:
                 mm = (1 / self.micron_per_pixel) * 500
 
                 # Define the number of ticks
-                num_x_ticks = (image_bright.shape)[1] // mm + 1
-                num_y_ticks = (image_bright.shape)[0] // mm + 1
+                num_x_ticks = image_bright.shape[1] // mm + 1
+                num_y_ticks = image_bright.shape[0] // mm + 1
                 plt.imshow(image_droplets)
-                plt.xticks(np.arange(0, (image_bright.shape)[1], mm), np.arange(0, num_x_ticks))
-                plt.yticks(np.arange(0, (image_bright.shape)[0], mm), np.arange(0, num_y_ticks))
+                plt.xticks(np.arange(0, image_bright.shape[1], mm), np.arange(0, num_x_ticks))
+                plt.yticks(np.arange(0, image_bright.shape[0], mm), np.arange(0, num_y_ticks))
                 plt.xlabel("x-axis (mm)")
                 plt.ylabel("y-axis (mm)")
                 plt.title("Segmented Droplets")
@@ -115,14 +116,62 @@ class BulkDroplet:
 
         return image_labeled, image_props
 
-    def find_brightfield_cells(self):
-        """Return the brightfield cells"""
 
-        # Call the labeled black-white droplet image and the associated properties
-        image_labeled, image_props = self.droplet_segment()
+def cells_from_droplet(labeled_image, raw_bright, droplet_num):
+    """
+    From segmented black-white droplets, the brightfield image; single channel, and the
+    selection of which droplet, return a black-white mask of the cells in the droplet
+    """
 
-        # Define the droplet images
-        labeled_droplets, number_droplets = skimage.measure.label(image_labeled, background=0, return_num=True)
-        bright_droplet_props = skimage.measure.regionprops(labeled_droplets, image_bright)
+    bright_droplet_props = skimage.measure.regionprops(labeled_image, raw_bright)
 
-        return labeled_droplets, bright_droplet_props
+    # List of segmented droplets
+    bright_droplets = []
+    droplet_masks = []
+
+    for index, prop in enumerate(bright_droplet_props):
+        bright_droplets.append(prop.intensity_image)
+        droplet_masks.append(prop.image)
+
+    # Assign images
+    cell_droplet = bright_droplets[droplet_num]
+
+    # Remove any hot pixels
+    selem = skimage.morphology.disk(3)
+    cell_droplet_median = skimage.filters.median(cell_droplet, selem)
+
+    # Create a gaussian blur of the image and subtract from median image
+    cell_droplet_gaussian_blur = skimage.filters.gaussian(cell_droplet_median, sigma=15)
+    cell_droplet_sub_gaussian = cell_droplet_median - cell_droplet_gaussian_blur
+
+    # Perform a Scharr operation on the no cell droplet
+    cell_droplet_temp_scharr = skimage.filters.scharr(cell_droplet_sub_gaussian, droplet_masks[droplet_num])
+    # Otsu threshold the scharr image
+    cell_droplet_thresh = skimage.filters.threshold_otsu(cell_droplet_temp_scharr)
+    # Fill holes created from the otsu threshold
+    cell_droplet_filled = scipy.ndimage.binary_fill_holes(cell_droplet_temp_scharr > cell_droplet_thresh)
+    # Try to fill any partial no_cell_filled
+    blur_droplet_cells = skimage.filters.gaussian(cell_droplet_filled, 2)
+    smooth_droplet_cells = blur_droplet_cells > .25
+
+    # Now that objects have been thresholded in the droplets, label and get props
+    cell_droplet_labels = skimage.measure.label(smooth_droplet_cells, background=0, return_num=False)
+
+    # Get regionprops and filter based on them
+    cell_droplet_props = skimage.measure.regionprops(cell_droplet_labels)
+
+    # Create a blank region of the original image
+    all_cells = np.zeros(cell_droplet.shape)
+
+    # First with no cells
+    for index, prop in enumerate(cell_droplet_props):
+        # If the region properties are within the threshold
+        if 1500 <= prop.area:
+            if prop.area <= 10000 and prop.extent > .2:
+                # Select the region
+                temp_seg = cell_droplet_labels == index + 1
+                filled_seg = temp_seg
+                # Add to the blank image
+                all_cells = all_cells + filled_seg
+
+    return all_cells
