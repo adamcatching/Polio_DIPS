@@ -7,7 +7,11 @@ Polio DIPs Project
 
 # The ultimate goal of this script is to make it usable on on any computer
 # through terminal. Multi-well analysis will be added once test images are
+<<<<<<< HEAD
 # acquired using cell Cytosol marker (CY5) and either dead cell marker (SYTOX)
+=======
+# acquired using cell cytosol marker (CY5) and either dead cell marker (SYTOX)
+>>>>>>> master
 # or Polio-virus marker (GFP).
 
 # Import necessary packages based on the mini-conda environment
@@ -17,13 +21,20 @@ import seaborn as sns
 
 # Necessary for analysis
 import numpy as np
+<<<<<<< HEAD
+=======
+import skimage.measure
+>>>>>>> master
 import skimage.filters
 import skimage.morphology
 import skimage.io
 import skimage.segmentation
 import skimage.exposure
 import skimage.feature
+<<<<<<< HEAD
 import skimage.measure
+=======
+>>>>>>> master
 import scipy.ndimage
 
 
@@ -42,12 +53,21 @@ class BulkDroplet:
         self.shape = self.image.shape
         self.multi_channel = multi_channel
 
+<<<<<<< HEAD
     def droplet_segment(self, testing=False):
         """Return droplets and their properties"""
 
         # If the image has multiple channels, choose the channel to determine droplets from
         if self.multi_channel:
             bright_channel = int(input('Input brightfield channel: '))
+=======
+    def droplet_segment(self, testing=False, bright_channel=0):
+        """Return droplets and their properties"""
+
+        print('The file is updated')
+        # If the image has multiple channels, choose the channel to determine droplets from
+        if self.multi_channel:
+>>>>>>> master
             image_bright = self.image[:, :, bright_channel]
         else:
             image_bright = self.image
@@ -147,18 +167,31 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
 
     # Perform a Scharr operation on the no cell droplet
     cell_droplet_temp_scharr = skimage.filters.scharr(cell_droplet_sub_gaussian, droplet_masks[droplet_num])
+<<<<<<< HEAD
     # Otsu threshold the Scharr image
     cell_droplet_thresh = skimage.filters.threshold_otsu(cell_droplet_temp_scharr)
     # Fill holes created from the Otsu threshold
+=======
+    # Otsu threshold the scharr image
+    cell_droplet_thresh = skimage.filters.threshold_otsu(cell_droplet_temp_scharr)
+    # Fill holes created from the otsu threshold
+>>>>>>> master
     cell_droplet_filled = scipy.ndimage.binary_fill_holes(cell_droplet_temp_scharr > cell_droplet_thresh)
     # Try to fill any partial no_cell_filled
     blur_droplet_cells = skimage.filters.gaussian(cell_droplet_filled, 2)
     smooth_droplet_cells = blur_droplet_cells > .25
 
+<<<<<<< HEAD
     # Now that objects have been threshold in the droplets, label and get props
     cell_droplet_labels = skimage.measure.label(smooth_droplet_cells, background=0, return_num=False)
 
     # Get region props and filter based on them
+=======
+    # Now that objects have been thresholded in the droplets, label and get props
+    cell_droplet_labels = skimage.measure.label(smooth_droplet_cells, background=0, return_num=False)
+
+    # Get regionprops and filter based on them
+>>>>>>> master
     cell_droplet_props = skimage.measure.regionprops(cell_droplet_labels)
 
     # Create a blank region of the original image
@@ -168,6 +201,7 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
     for index, prop in enumerate(cell_droplet_props):
         # If the region properties are within the threshold
         if 1500 <= prop.area:
+<<<<<<< HEAD
             if prop.area <= 10000:
                 if prop.extent > .2:
                     # Select the region
@@ -177,3 +211,108 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
                     all_cells = all_cells + filled_seg
 
     return all_cells
+=======
+            if prop.area <= 10000 and prop.extent > .2:
+                # Select the region
+                temp_seg = cell_droplet_labels == index + 1
+                filled_seg = temp_seg
+                # Add to the blank image
+                all_cells = all_cells + filled_seg
+
+    return all_cells
+
+
+def cell_bright_gfp_thresh(droplet_label,
+                           droplet_props,
+                           bright_file,
+                           gfp_file,
+                           gfp_thresh=50):
+    """
+    Use the threshold droplet labels and properties in combination with
+    the brightfield and GFP image to return output of segmented cell and
+    segmented dead cells.
+
+    Parameters
+    ----------
+    droplet_label:
+        numpy array where each droplet's region is a number (i.g. 1, 2, 3...)
+    droplet_props:
+        list of skimage.measure.properties values about droplets
+    bright_file:
+        filename of the brightfield microscopy image
+        (same dimensions of droplet_label and gfp_file)
+    gfp_file:
+        filename of the gfp microscopy image
+        (same dimensions of droplet_label and bright_file)
+    gfp_thresh:
+        the threshold of the gfp
+
+    Returns
+    -------
+    droplet_cells_list:
+        list of black-white images of segmented cells
+    droplet_gfp:
+        list of black-white numpy images for gf
+    """
+
+    # Test images (brightfield and GFP)
+    test_raw_image = skimage.io.imread(bright_file)[:, :, 0]
+    test_gfp_image = skimage.io.imread(gfp_file)[:, :, 1]
+
+    # Actual droplet segmented GFP image properties
+    gfp_droplet_props = skimage.measure.regionprops(droplet_label,
+                                                    test_gfp_image)
+
+    # Create list of Segmented GFP droplet images
+    droplet_gfp = []
+    for index, prop in enumerate(gfp_droplet_props):
+        droplet_gfp.append(prop.intensity_image > gfp_thresh)
+
+    # Create list of brightfield cells
+    droplet_cells_list = []
+    for i in range(len(droplet_props)):
+        droplet_cells_list.append(cells_from_droplet(droplet_label,
+                                                           test_raw_image,
+                                                           i))
+
+    return droplet_cells_list, droplet_gfp
+
+
+def diff_cells(bw_cells):
+    """
+    Some cells may be connected and treated as a single cell, use the watershed
+    algorithm and the watershed algorithm to return labeled cells with their
+    properties.
+
+    Reference:
+    scipy-lectures.org/packages/scikit-image/auto_examples/plot_segmentations
+
+    Parameters
+    ----------
+    bw_cells:
+        binary numpy image that contains cells
+
+    Return
+    ------
+    cell_labels:
+        numpy array image where each cell region is assigned a different number
+    cell_props:
+        list of properties of the cell areas
+    """
+
+    # Generate the markers as local maximum of the distance to the background
+    distance = scipy.ndimage.distance_transform_edt(bw_cells)
+    local_maxi = skimage.feature.peak_local_max(distance,
+                                                indices=False,
+                                                footprint=np.ones((50, 50)),
+                                                labels=bw_cells)
+    markers = skimage.measure.label(local_maxi)
+
+    # Label the cells from the centers of the local max
+    cell_labels = skimage.segmentation.watershed(-bw_cells, markers, mask=bw_cells)
+
+    # Return the properties of these cells
+    cell_props = skimage.measure.regionprops(cell_labels)
+
+    return cell_labels, cell_props
+>>>>>>> master
