@@ -160,3 +160,58 @@ def video_correction(checkerboard_vertices,
         return mtx, dist, gray.shape[:2]
     elif not image_test:
         print('Checkerboard not found')
+
+
+def undistort(image, K, D):
+    """
+    Undistort the input image using the K and D parameters input.
+
+    Parameters
+    ----------
+    image:
+        A 2-D, grayscale numpy array
+
+    K:
+        A 2-D numpy array with the the diagonal elements representing
+        the x, y and skew values of the focal lengths and the optical
+        centers in the first two rows of the third column.
+
+    D:
+        A 2-D matrix of size 1x4, where the first two values are
+        linear distortion coefficients and the last two values are
+        correction factors the camera not being perfectly parallel to
+        the surface.
+
+    Return
+    ------
+    undistorted_image:
+        A 2-D, grayscale numpy array with distortion removed.
+    """
+
+    # Extract the height (h) and width (w) dimensions of the image
+    h, w = image.shape[:2]
+
+    # Create the two map parameters to deconvolute the input image
+    map_x, map_y = cv2.fisheye.initUndistortRectifyMap(K,
+                                                     D,
+                                                     np.eye(3),
+                                                     K,
+                                                     DIM,
+                                                     cv2.CV_16SC2)
+
+    # Undistort the image
+    undistorted_img = cv2.remap(image,
+                                map_x,
+                                map_y,
+                                interpolation=cv2.INTER_LINEAR,
+                                borderMode=cv2.BORDER_CONSTANT)
+
+    return undistorted_image
+
+class MouseVideo:
+    """Mouse video object, read in as a """
+
+    def __init__(self, video_link, distort_param=[]):
+        """
+        From the location of the video (.m4v format required)
+        """
