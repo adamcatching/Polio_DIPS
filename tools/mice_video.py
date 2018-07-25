@@ -96,34 +96,45 @@ def video_correction(checkerboard_vertices,
         for j in range(12, 7, -1):
             checkerboard = (6, 8)
 
-            subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
+            subpix_criteria = (cv2.TERM_CRITERIA_EPS +
+                               cv2.TERM_CRITERIA_MAX_ITER,
                                30, 0.1)
 
-            objp = np.zeros((1, checkerboard[0] * checkerboard[1], 3), np.float32)
-            objp[0, :, :2] = np.mgrid[0:checkerboard[0], 0:checkerboard[1]].T.reshape(-1, 2)
+            objp = np.zeros((1,
+                             checkerboard[0] * checkerboard[1], 3),
+                             np.float32)
+            objp[0, :, :2] = np.mgrid[0:checkerboard[0],
+                             0:checkerboard[1]].T.reshape(-1, 2)
 
             objpoints = []  # 3d point in real world space
             imgpoints = []  # 2d points in image plane.
 
             # Find the chess board corners
-            ret, corners = cv2.findChessboardCorners(gray,
-                                                     checkerboard,
-                                                     cv2.CALIB_CB_ADAPTIVE_THRESH +
-                                                     cv2.CALIB_CB_FAST_CHECK +
-                                                     cv2.CALIB_CB_NORMALIZE_IMAGE)
+            cor = cv2.findChessboardCorners(gray,
+                                            checkerboard,
+                                            cv2.CALIB_CB_ADAPTIVE_THRESH +
+                                            cv2.CALIB_CB_FAST_CHECK +
+                                            cv2.CALIB_CB_NORMALIZE_IMAGE)
+            ret, corners = cor
 
             if ret:
                 print(i, j)
-                # If found, add object points, image points (after refining them)
+                # If found, add object points, image points (after
+                # refining them)
                 objpoints.append(objp)
-                cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), subpix_criteria)
+                cv2.cornerSubPix(gray,
+                                 corners,
+                                 (11, 11),
+                                 (-1, -1),
+                                 subpix_criteria)
                 imgpoints.append(corners)
                 # Try
-                ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints,
-                                                                   imgpoints,
-                                                                   gray.shape[::-1],
-                                                                   None,
-                                                                   None)
+                all_vars = cv2.calibrateCamera(objpoints,
+                                               imgpoints,
+                                               gray.shape[::-1],
+                                               None,
+                                               None)
+                ret, mtx, dist, rvecs, tvecs = all_vars
                 break
             if ret:
                 break
@@ -206,7 +217,9 @@ def seg_mice(ir_image):
     # Threshold image
     binary_local = ir_image < local_thresh
     # Label the segmented regions
-    image_labeled, number_labels = skimage.measure.label(binary_local, background=0, return_num=True)
+    image_labeled, number_labels = skimage.measure.label(binary_local,
+                                                         background=0,
+                                                         return_num=True)
     # Get the properties of the labeled regions
     image_props = skimage.measure.regionprops(image_labeled)
 
@@ -271,7 +284,6 @@ class MouseVideoProcess:
                                        distort_param[0],
                                        distort_param[1])
             self.frames.append(temp_frame)
-        self.frames = np.array(list(x) for x in self.frames)
 
     def rough_segment(self):
         """
@@ -291,8 +303,5 @@ class MouseVideoProcess:
         for frame in self.frames:
             temp_segmented_frame = seg_mice(frame)
             segmented_frames.append(temp_segmented_frame)
-
-        # Redefine the list of numpy arrays as a 3-D numpy array
-        segmented_frames = np.array(list(x) for x in segmented_frames)
 
         return segmented_frames
