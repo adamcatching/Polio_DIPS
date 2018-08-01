@@ -1,9 +1,10 @@
-# Digital record of summer rotation in the Ardino Lab
+# Digital record of project activity in the Ardino Lab
 
 ## Daily record under notebook
 ## Python scripts under tools
 
-As per UCSF electronic lab notebook protocol, the Andino Laboratory owns this notebook.
+As per UCSF electronic lab notebook protocol, the Andino Laboratory owns this notebook.  
+As of 2018/08/01, member of Andino Lab, no longer summer rotation student.
 
 The three aspects of the Poliovirus Defective Interfering Particle (DIP) project encapsulated are:
 1) **Single-cell microfluidic dynamics image processing and analysis.**
