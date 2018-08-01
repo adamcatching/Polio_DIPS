@@ -68,7 +68,7 @@ class BulkDroplet:
         for index, prop in enumerate(image_props):
             # print(prop.area)
             # If the region properties are within the threshold
-            if prop.area >= 10000 and prop.eccentricity <= 0.4:
+            if prop.area >= 10000 and prop.eccentricity <= 0.6:
                 # Select the region
                 # print(index)
                 """temp_seg = image_labeled==index+1
@@ -87,8 +87,10 @@ class BulkDroplet:
 
         # Fill the holes of the image
         image_droplets = scipy.ndimage.binary_fill_holes(blank_background)
+        """
         image_droplets = skimage.morphology.closing(image_droplets, selem=skimage.morphology.disk(2))
         image_droplets = skimage.morphology.erosion(image_droplets, selem=skimage.morphology.disk(2))
+        """
 
         # If testing is True, show the image
         if testing:
@@ -118,7 +120,7 @@ class BulkDroplet:
         return image_labeled, image_props
 
 
-def cells_from_droplet(labeled_image, raw_bright, droplet_num):
+def cells_from_droplet(labeled_image, raw_bright, droplet_num, size_thresh=10000):
     """
     From segmented black-white droplets, the brightfield image; single channel, and the
     selection of which droplet, return a black-white mask of the cells in the droplet
@@ -168,7 +170,7 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num):
     for index, prop in enumerate(cell_droplet_props):
         # If the region properties are within the threshold
         if 1500 <= prop.area:
-            if prop.area <= 10000 and prop.extent > .2:
+            if prop.area <= size_thresh and prop.extent > .2:
                 # Select the region
                 temp_seg = cell_droplet_labels == index + 1
                 filled_seg = temp_seg
