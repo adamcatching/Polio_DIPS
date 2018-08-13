@@ -25,7 +25,6 @@ import skimage.segmentation
 import skimage.exposure
 import skimage.feature
 import scipy.ndimage
-import skimage.ndimage as ndi
 
 
 class BulkDroplet:
@@ -332,7 +331,7 @@ def segment_10x(filename):
             blank_background = blank_background + filled_seg
 
     # Fill the holes of the image
-    image_droplets = ndi.binary_fill_holes(blank_background)
+    image_droplets = scipy.ndimage.binary_fill_holes(blank_background)
 
     # From the filled droplets, create labeled regions with properties
     labeled_droplets, number_droplets = skimage.measure.label(image_droplets,
@@ -398,7 +397,7 @@ def segment_10x(filename):
         cells = blank_background * new_mask
         cells = skimage.morphology.dilation(cells)
         cells = skimage.morphology.closing(cells)
-        cells = ndi.binary_fill_holes(cells)
+        cells = scipy.ndimage.binary_fill_holes(cells)
         cells = skimage.morphology.erosion(cells)
         cells = skimage.morphology.erosion(cells)
         # Append the cells image to the list
