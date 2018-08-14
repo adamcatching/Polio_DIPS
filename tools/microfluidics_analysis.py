@@ -25,6 +25,7 @@ import skimage.segmentation
 import skimage.exposure
 import skimage.feature
 import scipy.ndimage
+import scipy.ndimage as ndi
 
 
 class BulkDroplet:
@@ -277,34 +278,30 @@ def diff_cells(bw_cells):
     return cell_labels, cell_props
 
 
-def segment_10x(filename):
+def get_10x_droplets(filename):
     """
-    Based on the images collected by Hong in July, this function takes the
-    merged bright-field/GFP image of the bulk, 10X images of infected/uninfected
-    cells and returns a list of the individual droplets and their bright-field
-    and GFP identified cells.
+    Process the 10X file to return a lists of images representing the droplets
+    that contain cells, both the bright-field and GFP channels.
 
     Parameters
     ----------
     filename:
-        The RGB .tif file that contains the GFP channel (1) and bright-field
-        channel (0)
+        The name the 10X, RGB .tif image of the bulk droplet with cells
 
     Return
     ------
-    whole_droplets:
-        A list of grey-scale 2D numpy arrays representing the bright-field
-        images of identified droplets
-    gfp_droplets:
-        A list of grey-scale 2D numpy arrays that represent the GFP image of
-        each cell
-    bw_droplets:
-        A list of grey-scale 2D numpy arrays that represent the individual
-        cells in a droplet
+    bright_droplet_props:
+        A list of 2D, gray-scale, numpy arrays representing the bright-field
+        channel of the bulk droplets
+    gfp_droplet_props:
+        A list of 2D, gray-scale, numpy arrays representing the bright-field
+        channel of the bulk droplets
     """
     # Read in the bright-field and GFP images
-    image_bright = skimage.io.imread(filename)[:, :, 0]
-    image_gfp = skimage.io.imread(filename)[:, :, 1]
+    entire_image = skimage.io.imread(filename)
+    image_bright = entire_image[:, :, 0]
+    image_gfp = entire_image[:, :, 1]
+
     # Find the Otsu threshold
     bright_thresh_otsu = skimage.filters.threshold_otsu(image_bright)
 
@@ -320,7 +317,7 @@ def segment_10x(filename):
     # Create a blank region of the original image
     image_dimensions = image_bright.shape
     blank_background = np.zeros(image_dimensions)
-    # Go through props
+    # Go through props, filter for round droplets
     for index, prop in enumerate(image_props):
         # If the region properties are within the threshold
         if prop.area >= 400 and prop.eccentricity <= 0.5:
@@ -331,7 +328,7 @@ def segment_10x(filename):
             blank_background = blank_background + filled_seg
 
     # Fill the holes of the image
-    image_droplets = scipy.ndimage.binary_fill_holes(blank_background)
+    image_droplets = ndi.binary_fill_holes(blank_background)
 
     # From the filled droplets, create labeled regions with properties
     labeled_droplets, number_droplets = skimage.measure.label(image_droplets,
@@ -341,66 +338,125 @@ def segment_10x(filename):
                                                        image_bright)
     gfp_droplet_props = skimage.measure.regionprops(labeled_droplets,
                                                     image_gfp)
-    # List to save black-white threshold cells
-    whole_droplets = []
     bw_droplets = []
     gfp_droplets = []
     for i in range(number_droplets):
         # Add brightfield image and gfp to lists
-        whole_droplets.append(bright_droplet_props[i].intensity_image)
-        gfp_droplets.append((gfp_droplet_props[i].intensity_image > 150)
-                            * gfp_droplet_props[i].intensity_image)
-        # Define the brightfield image
-        temp_image = bright_droplet_props[i].intensity_image
-        droplet_mask = bright_droplet_props[i].image
-        # Define the inner radius of the droplet
-        primary_radius = bright_droplet_props[i].minor_axis_length / 2
-        new_radius = primary_radius - 5
+        bw_droplet = bright_droplet_props[i].intensity_image
+        bw_droplets.append(bw_droplet)
 
-        if len(droplet_mask) < len(droplet_mask[0]):
-            center_x = bright_droplet_props[i].minor_axis_length / 2
-            center_y = bright_droplet_props[i].major_axis_length / 2
-        else:
-            center_x = bright_droplet_props[i].major_axis_length / 2
-            center_y = bright_droplet_props[i].minor_axis_length / 2
+        # As the marker only appears where the green channel is substantially
+        # greater than the other two channels, the GFP threshold can be
+        # determined by the maximum value of the bright-field channel
+        gfp_thresh = bw_droplet.max()
+        gfp_droplets.append((gfp_droplet_props[i].intensity_image > gfp_thresh) *
+                            gfp_droplet_props[i].intensity_image)
 
-        new_mask = np.zeros(droplet_mask.shape)
-        for x, row in enumerate(new_mask):
-            for y, pixel in enumerate(row):
-                dist_x = center_x - x
-                dist_y = center_y - y
-                dist = np.sqrt(dist_x ** 2 + dist_y ** 2)
-                if dist < new_radius:
-                    new_mask[x, y] = 1
+    return bw_droplets, gfp_droplets
 
-        elevation_map = skimage.filters.sobel(temp_image, droplet_mask)
-        # Otsu threshold the Scharr image
-        cell_droplet_thresh = skimage.filters.threshold_otsu(elevation_map)
-        edges = elevation_map > cell_droplet_thresh
-        edges = skimage.morphology.erosion(edges)
-        # Label the parts of the image and threshold if radius
-        label = skimage.measure.label(edges, background=0)
-        edge_props = skimage.measure.regionprops(label, temp_image)
-        image_dimensions = temp_image.shape
-        blank_background = np.zeros(image_dimensions)
-        # print('Droplet %d' % (i*3 + j))
-        for index, prop in enumerate(edge_props):
-            cutoff = prop.extent
-            # print(prop.equivalent_diameter, cutoff)
-            if prop.area > 10:
-                # print(prop.area)
-                temp_seg = label == index + 1
-                filled_seg = temp_seg
-                blank_background = blank_background + filled_seg
 
-        # Remove outer ring
-        cells = blank_background * new_mask
-        cells = skimage.morphology.dilation(cells)
-        cells = skimage.morphology.closing(cells)
-        cells = scipy.ndimage.binary_fill_holes(cells)
-        cells = skimage.morphology.erosion(cells)
-        cells = skimage.morphology.erosion(cells)
-        # Append the cells image to the list
-        bw_droplets.append(cells)
+def cell_segment_10x(bw_droplet, gfp_droplet):
+    """
+    Segment the cells present in the droplet into two output lists,
+    one for the bright-field channel and the other for GFP. If no
+    cell is detected, the lists are replaced with the value None.
 
-    return whole_droplets, gfp_droplets, bw_droplets
+    Parameters
+    ----------
+    bw_droplet:
+       8-bit, 2D numpy array representing the bright-field channel of
+       the droplet
+
+    gfp_droplet:
+       8-bit, 2D numpy array representing the GFP channel of the
+       droplet
+
+    Return
+    ------
+    bw_cell(s):
+        A list of 8-bit, 2D numpy arrays representing the bright-field
+        channel of the cell(s) in the droplet. If there are not any
+        cells present, None is returned
+
+    gfp_cell(s):
+        A list of 8-bit, 2D numpy arrays representing the GFP channel
+        of the cell(s) in the droplet. Thresholding has already been
+        applied to this image. As in bw_cell(s), if there are not any
+        cells present, None is returned.
+    """
+
+    # Create eroded mask for the droplet
+    bf_mask = bw_droplet != 0
+    bf_mask = ndi.binary_erosion(bf_mask, iterations=4)
+
+    # Apply the Prewitt method to the bright-field droplet
+    bf_prewitt = skimage.filters.prewitt(bw_droplet, mask=bf_mask)
+
+    # Threshold with Otsu's method
+    thresh_otsu = skimage.filters.threshold_otsu(bf_prewitt)
+    thresh_droplet = bf_prewitt > thresh_otsu
+
+    # Get the region properties of the droplets
+    labels = skimage.measure.label(thresh_droplet, background=0)
+    edge_props = skimage.measure.regionprops(labels)
+
+    # Filter the labeled regions by area and eccentricity
+    blank_region = np.zeros(thresh_droplet.shape)
+    for index, prop in enumerate(edge_props):
+        if prop.area > 100 and prop.area < 1000 and prop.eccentricity <= 0.9:
+            temp_seg = labels == index + 1
+            blank_region = blank_region + temp_seg
+
+    # If there are not any cells present, return None for both the
+    # bright-field and GFP channels
+    if blank_region.max() == 0:
+        return None
+    else:
+        # Close any holes
+        closed_cells = ndi.binary_closing(blank_region)
+
+        # Fill and erode
+        filled_cells = ndi.binary_fill_holes(closed_cells)
+        eroded_cells = ndi.binary_erosion(filled_cells)
+
+        # Separate any multiple cells
+        # Use watershed
+        temp_distances = ndi.distance_transform_edt(eroded_cells)
+        # Find the
+        local_maxi = skimage.feature.peak_local_max(temp_distances,
+                                                    indices=False,
+                                                    footprint=np.ones((20, 20)),
+                                                    labels=eroded_cells)
+        markers = skimage.measure.label(local_maxi)
+
+        cell_labels = skimage.segmentation.watershed(~eroded_cells,
+                                                     markers,
+                                                     mask=eroded_cells)
+        # print(cell_labels.max())
+        # If only one cell, return the two channels in two lists
+        if cell_labels.max() == 1:
+            # Get the segmented cell intensity image of both channels
+            bw_cell = [cell_labels * bw_droplet]
+            gfp_cell = [cell_labels * gfp_droplet]
+
+            return bw_cell, gfp_cell
+        # If there are more than one cell in the droplet, create two
+        # lists of multiple segmented cell representing two channels
+        elif cell_labels.max() > 1:
+            # Get the number of cells
+            num_cells = cell_labels.max()
+            # Initialize the lists
+            bw_cells = []
+            gfp_cells = []
+            # Iterate over the cell masks
+            print(num_cells)
+            for i in range(num_cells):
+                print(i)
+                # A new segmented cell mask
+                temp_cell = cell_labels == i + 1
+
+                # Add to the lists of segmented cell intensity images
+                bw_cells.append(temp_cell * bw_droplet)
+                gfp_cells.append(temp_cell * gfp_droplet)
+
+            return bw_cells, gfp_cells
