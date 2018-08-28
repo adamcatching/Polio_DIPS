@@ -410,7 +410,7 @@ def cell_segment_10x(bw_droplet, gfp_droplet):
     # If there are not any cells present, return None for both the
     # bright-field and GFP channels
     if blank_region.max() == 0:
-        return None
+        return None, None
     else:
         # Close any holes
         closed_cells = ndi.binary_closing(blank_region)
@@ -419,44 +419,48 @@ def cell_segment_10x(bw_droplet, gfp_droplet):
         filled_cells = ndi.binary_fill_holes(closed_cells)
         eroded_cells = ndi.binary_erosion(filled_cells)
 
+        """
         # Separate any multiple cells
         # Use watershed
-        temp_distances = ndi.distance_transform_edt(eroded_cells)
+        #temp_distances = ndi.distance_transform_edt(eroded_cells)
         # Find the
-        local_maxi = skimage.feature.peak_local_max(temp_distances,
+        #local_maxi = skimage.feature.peak_local_max(temp_distances,
                                                     indices=False,
                                                     footprint=np.ones((20, 20)),
                                                     labels=eroded_cells)
-        markers = skimage.measure.label(local_maxi)
+        #markers = skimage.measure.label(local_maxi)
 
-        cell_labels = skimage.segmentation.watershed(~eroded_cells,
+        #cell_labels = skimage.segmentation.watershed(~eroded_cells,
                                                      markers,
                                                      mask=eroded_cells)
         # print(cell_labels.max())
         # If only one cell, return the two channels in two lists
-        if cell_labels.max() == 1:
-            # Get the segmented cell intensity image of both channels
-            bw_cell = [cell_labels * bw_droplet]
-            gfp_cell = [cell_labels * gfp_droplet]
+        """
+        #if cell_labels.max() == 1:
+        # Get the segmented cell intensity image of both channels
+        bw_cell = [eroded_cells * bw_droplet]
+        gfp_cell = [eroded_cells * gfp_droplet]
 
-            return bw_cell, gfp_cell
+        return bw_cell, gfp_cell
         # If there are more than one cell in the droplet, create two
         # lists of multiple segmented cell representing two channels
-        elif cell_labels.max() > 1:
-            # Get the number of cells
-            num_cells = cell_labels.max()
-            # Initialize the lists
-            bw_cells = []
-            gfp_cells = []
-            # Iterate over the cell masks
-            print(num_cells)
-            for i in range(num_cells):
-                print(i)
-                # A new segmented cell mask
-                temp_cell = cell_labels == i + 1
+    """
+    elif cell_labels.max() > 1:
+    # Get the number of cells
+    num_cells = cell_labels.max()
+    # Initialize the lists
+    bw_cells = []
+    gfp_cells = []
+    # Iterate over the cell masks
+    print(num_cells)
+    for i in range(num_cells):
+    print(i)
+    # A new segmented cell mask
+    temp_cell = cell_labels == i + 1
 
-                # Add to the lists of segmented cell intensity images
-                bw_cells.append(temp_cell * bw_droplet)
-                gfp_cells.append(temp_cell * gfp_droplet)
+    # Add to the lists of segmented cell intensity images
+    bw_cells.append(temp_cell * bw_droplet)
+    gfp_cells.append(temp_cell * gfp_droplet)
 
-            return bw_cells, gfp_cells
+    return bw_cells, gfp_cells
+    """
