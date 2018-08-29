@@ -7,7 +7,11 @@ Polio DIPs Project
 
 # The ultimate goal of this script is to make it usable on on any computer
 # through terminal. Multi-well analysis will be added once test images are
+<<<<<<< HEAD
+# acquired using cell Cytosol marker (CY5) and either dead cell marker (SYTOX)
+=======
 # acquired using cell cytosol marker (CY5) and either dead cell marker (SYTOX)
+>>>>>>> master
 # or Polio-virus marker (GFP).
 
 # Import necessary packages based on the mini-conda environment
@@ -17,13 +21,20 @@ import seaborn as sns
 
 # Necessary for analysis
 import numpy as np
+<<<<<<< HEAD
+=======
 import skimage.measure
+>>>>>>> master
 import skimage.filters
 import skimage.morphology
 import skimage.io
 import skimage.segmentation
 import skimage.exposure
 import skimage.feature
+<<<<<<< HEAD
+import skimage.measure
+=======
+>>>>>>> master
 import scipy.ndimage
 import scipy.ndimage as ndi
 
@@ -43,12 +54,21 @@ class BulkDroplet:
         self.shape = self.image.shape
         self.multi_channel = multi_channel
 
+<<<<<<< HEAD
+    def droplet_segment(self, testing=False):
+        """Return droplets and their properties"""
+
+        # If the image has multiple channels, choose the channel to determine droplets from
+        if self.multi_channel:
+            bright_channel = int(input('Input brightfield channel: '))
+=======
     def droplet_segment(self, testing=False, bright_channel=0):
         """Return droplets and their properties"""
 
         print('The file is updated')
         # If the image has multiple channels, choose the channel to determine droplets from
         if self.multi_channel:
+>>>>>>> master
             image_bright = self.image[:, :, bright_channel]
         else:
             image_bright = self.image
@@ -150,18 +170,31 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num, size_thresh=10000
 
     # Perform a Scharr operation on the no cell droplet
     cell_droplet_temp_scharr = skimage.filters.scharr(cell_droplet_sub_gaussian, droplet_masks[droplet_num])
+<<<<<<< HEAD
+    # Otsu threshold the Scharr image
+    cell_droplet_thresh = skimage.filters.threshold_otsu(cell_droplet_temp_scharr)
+    # Fill holes created from the Otsu threshold
+=======
     # Otsu threshold the scharr image
     cell_droplet_thresh = skimage.filters.threshold_otsu(cell_droplet_temp_scharr)
     # Fill holes created from the otsu threshold
+>>>>>>> master
     cell_droplet_filled = scipy.ndimage.binary_fill_holes(cell_droplet_temp_scharr > cell_droplet_thresh)
     # Try to fill any partial no_cell_filled
     blur_droplet_cells = skimage.filters.gaussian(cell_droplet_filled, 2)
     smooth_droplet_cells = blur_droplet_cells > .25
 
+<<<<<<< HEAD
+    # Now that objects have been threshold in the droplets, label and get props
+    cell_droplet_labels = skimage.measure.label(smooth_droplet_cells, background=0, return_num=False)
+
+    # Get region props and filter based on them
+=======
     # Now that objects have been thresholded in the droplets, label and get props
     cell_droplet_labels = skimage.measure.label(smooth_droplet_cells, background=0, return_num=False)
 
     # Get regionprops and filter based on them
+>>>>>>> master
     cell_droplet_props = skimage.measure.regionprops(cell_droplet_labels)
 
     # Create a blank region of the original image
@@ -171,7 +204,22 @@ def cells_from_droplet(labeled_image, raw_bright, droplet_num, size_thresh=10000
     for index, prop in enumerate(cell_droplet_props):
         # If the region properties are within the threshold
         if 1500 <= prop.area:
+<<<<<<< HEAD
             if prop.area <= size_thresh and prop.extent > .2:
+=======
+<<<<<<< HEAD
+            if prop.area <= 10000:
+                if prop.extent > .2:
+                    # Select the region
+                    temp_seg = cell_droplet_labels == index + 1
+                    filled_seg = temp_seg
+                    # Add to the blank image
+                    all_cells = all_cells + filled_seg
+
+    return all_cells
+=======
+            if prop.area <= 10000 and prop.extent > .2:
+>>>>>>> Image_processing
                 # Select the region
                 temp_seg = cell_droplet_labels == index + 1
                 filled_seg = temp_seg
@@ -276,6 +324,7 @@ def diff_cells(bw_cells):
     cell_props = skimage.measure.regionprops(cell_labels)
 
     return cell_labels, cell_props
+<<<<<<< HEAD
 
 
 def get_10x_droplets(filename):
@@ -464,3 +513,6 @@ def cell_segment_10x(bw_droplet, gfp_droplet):
 
     return bw_cells, gfp_cells
     """
+=======
+>>>>>>> master
+>>>>>>> Image_processing
